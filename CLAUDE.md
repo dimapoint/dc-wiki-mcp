@@ -20,7 +20,8 @@ uv run pytest                           # all tests
 uv run pytest tests/test_pipeline.py::test_refresh   # single test
 ```
 
-`data/` is gitignored. In a fresh (e.g. cloud) checkout, get the dump from the repo's GitHub release
+In Claude Code on the web, `.claude/hooks/session-start.sh` does all of this setup (newer uv, deps, dump, DB; skipped
+when already present). `data/` is gitignored. In a fresh checkout elsewhere, get the dump from the repo's GitHub release
 `data-dump-2026-09-20` (`.7z`, extract with `7z e -odata/raw ...`), then run the ingest. `tests/test_fase4.py` is skipped
 without `data/dcdb.sqlite`; `test_wiki.py` and `test_pipeline.py` (synthetic mini-dump) need neither the DB nor network.
 `DCDB_PATH` points the server at another DB.
