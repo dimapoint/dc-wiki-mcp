@@ -35,6 +35,7 @@ without `data/dcdb.sqlite`; `test_wiki.py` and `test_pipeline.py` (synthetic min
 - Look at real dump samples before writing parsing code; don't assume template/param names. `docs/muestras.md` has the
   samples and findings that shaped the schema.
 - User prefers minimal code, no over-engineering.
+- Git: work, commit and push directly on `main`. No feature branches, no pull requests (small local project).
 
 ## Architecture
 
