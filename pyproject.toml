@@ -1,0 +1,20 @@
+[project]
+name = "dc-wiki-mcp"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "mcp>=2.2",
+    "mwparserfromhell>=0.7.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.uv]
+# mwparserfromhell has no cp314 Windows wheel; build its pure-Python tokenizer (no MSVC needed).
+extra-build-variables = { mwparserfromhell = { WITH_EXTENSION = "0" } }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
