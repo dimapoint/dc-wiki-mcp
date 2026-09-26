@@ -149,7 +149,8 @@ Pide `recentchanges` + el wikitext de cada página cambiada, con user agent hone
 (`dc-wiki-mcp/0.1 (+https://github.com/dimapoint/dc-wiki-mcp)`) y al menos 1 s entre pedidos; ante 402/403/429 frena
 sin reintentar. Reemplaza la página y todo lo derivado (créditos, contenidos, eventos, búsqueda) y deja la fecha en
 `info_dump().refreshed_until`. Toma ediciones, páginas nuevas y redirecciones; los borrados y traslados esperan al
-próximo dump, y la API guarda cambios de unos 90 días.
+próximo dump, y la API guarda cambios de unos 90 días. Medido el 2026-09-26: los 6 días desde el dump fueron 2.156
+páginas en 44 pedidos, 2 minutos.
 
 **Dump nuevo** (reindexa todo y después refresca):
 
