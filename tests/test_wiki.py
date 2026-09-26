@@ -1,5 +1,6 @@
 """Parser unit tests on wikitext shaped like the real dump (see docs/muestras.md)."""
-from dcdb.wiki import c_ref, clean_person, credits, issue_dates, list_items, page_url, process_page
+from dcdb.wiki import (c_ref, clean_person, credits, crossover_candidates, issue_dates, list_items, page_url,
+                       process_page)
 
 
 def test_c_ref_follows_template_c():
@@ -28,6 +29,8 @@ def test_clean_person():
     assert clean_person("Alex Ross <!-- paints -->") == "Alex Ross"
     assert clean_person("N/A") == "Uncredited"
     assert clean_person("  ") is None
+    assert clean_person("Criminals have trained a dog to follow the house owner around until it sees where "
+                        "the family jewels are kept.") is None
 
 
 def test_credits_issue_and_collection():
@@ -88,6 +91,22 @@ def test_process_page_issue():
     assert ("Batman R.I.P.", "Batman Vol 1 676", "story_title_link", None, None) in r["members"]
     assert r["headline"] == ["Batman R.I.P.—Midnight in the House of Hurt"]
     assert "Batman R.I.P. (Collected)" in r["page"][7]  # plain text keeps {{Co}} display text
+    assert r["templates"] == ["BatRIP"]
+
+
+def test_crossover_candidates():
+    # Shapes of real navboxes: Template:Final Crisis, Template:Countdown, Template:Post-Crisis Reboot,
+    # Template:Sinestro Corps War (a list of bold issue links), Template:Mud Pack (only {{Crossover}}).
+    fc = "{|\n|[[Image:X.jpg|left]]'''[[Final Crisis]] Crossover''' text\n{{Crossover\n| title = [[Final Crisis Vol 1|Core Issues]]\n| body = {{c|Final Crisis #1}}\n}}"
+    assert crossover_candidates("Final Crisis", fc) == ["Final Crisis"]
+    assert crossover_candidates("Countdown", "'''[[Countdown to Final Crisis|Countdown]] Crossover'''") == \
+        ["Countdown to Final Crisis"]
+    reboot = "'''Post-[[Crisis on Infinite Earths|Crisis]] Reboot'''\n{{Crossover|title=[[The Man of Steel Vol 1]]|body=x}}"
+    assert crossover_candidates("Post-Crisis Reboot", reboot) == ["The Man of Steel Vol 1", "Post-Crisis Reboot"]
+    scw = "'''[[Green Lantern Vol 4 21|Part II: ''Fear & Loathing'']]''' &bull; '''[[Green Lantern Vol 4 22|Part IV]]'''"
+    assert crossover_candidates("Sinestro Corps War", scw) == ["Sinestro Corps War"]
+    assert crossover_candidates("Mud Pack", "{{Crossover\n| title = Mud Pack\n| body = {{c|Detective Comics #604}}\n}}") \
+        == ["Mud Pack", "Mud Pack"]
 
 
 def test_page_url():

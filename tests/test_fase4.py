@@ -74,6 +74,20 @@ def test_evento_final_crisis_sorted_and_includes_batman_682():
     assert dated == sorted(dated)
 
 
+def test_crossover_templates_link_events():
+    eventos = {e["titulo"]: e["fuentes"] for e in server.numero("Batman", 1, "676")["eventos"]}
+    assert "crossover_template" in eventos["Batman R.I.P."]  # {{BatRIP}} -> Template:Batman RIP
+    wol = {x["titulo"]: x["fuentes"] for x in server.evento("War of Light")["numeros"]}
+    assert "crossover_template" in wol["Green Lantern Vol 4 21"]
+
+
+def test_errors_are_explicit():
+    assert "no es un tomo" in server.tomo("Bruce Wayne (Prime Earth)")["error"]
+    assert "no es un evento" in server.evento("Bruce Wayne (Prime Earth)")["error"]
+    assert "kinds_validos" in server.buscar("Batman", kind="comic")
+    assert "error" in server.run_de_autor("   ")
+
+
 def test_leer_pagina_resolves_redirects():
     res = server.leer_pagina("Bruce Wayne (Prime Earth)", max_chars=500)
     assert res["titulo"] == "Batman (Bruce Wayne)" and res["redirigido_desde"] == "Bruce Wayne (Prime Earth)"

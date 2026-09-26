@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Baja un dump nuevo del DC Database (o usa uno ya bajado) y reindexa data/dcdb.sqlite.
+# Baja un dump nuevo del DC Database (o usa uno ya bajado), reindexa data/dcdb.sqlite y la pone al día
+# con los cambios posteriores al dump vía la API de MediaWiki (dcdb.refresh).
 #
 #   DUMP_URL="https://…/endcdatabase_pages_current.xml.7z" DCDB_CONTACT="tu@mail" ./actualizar.sh
 #   ./actualizar.sh ruta/al/endcdatabase_pages_current.xml.7z    # o .gz / .xml bajado a mano
 #
+# Para refrescar solo las páginas editadas desde el último dump/refresco: uv run python -m dcdb.refresh
 # Reglas del proyecto: user agent honesto (proyecto + contacto) y, ante 402/403/429, frenar sin reintentar.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -34,5 +36,6 @@ case "$src" in
 esac
 
 uv run python -m dcdb.ingest --dump "$XML"
+uv run python -m dcdb.refresh || echo "Refresco vía API omitido; la base queda con los datos del dump." >&2
 uv run pytest -q
 uv run python -c "import json; from dcdb.server import info_dump; print(json.dumps(info_dump(), ensure_ascii=False, indent=1))"

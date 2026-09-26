@@ -13,6 +13,7 @@ Las plantillas de infobox viven en el espacio `DC Database:` (ns 4), p. ej. `{{D
 - **Contenido de tomos**: `IssueList` con viñetas `* {{c|Serie Vol N #}}: "Título"` en orden de lectura. `{{c|Batman #676}}` = `Batman Vol 1 676` (regla de `Template:C`).
 - **Personajes**: el wiki está migrando títulos (`Bruce Wayne (Prime Earth)` es hoy redirección a `Batman (Bruce Wayne)`); se resuelve con el mapa de redirecciones.
 - **Categorías**: casi todas las generan las plantillas, así que no están en el wikitext; solo se guardan las `[[Category:...]]` explícitas.
+- **Plantillas de crossover**: al pie de muchos números hay navboxes (`{{Final Crisis}}`, `{{BatRIP}}` → redirección a `Template:Batman RIP`, `{{War of Light}}`, `{{Knightfall Saga}}`). Abren con un encabezado en negrita que enlaza el evento (`'''[[Final Crisis]] Crossover'''`) y listan números en `{{Crossover|title=...|body={{c|...}}}}`; al transcluirlas, el wiki categoriza el número en *Final Crisis Crossover*. Hay otras con la misma forma que no son crossovers (`{{Batman RR}}` = lecturas recomendadas, `{{Post-Crisis Reboot}}`, `{{Superman Origins}}`), así que una plantilla cuenta solo si el enlace del encabezado (o, si no tiene, el título del primer `{{Crossover}}` o el nombre de la plantilla) es una página de evento/arco: 81 plantillas, ~1.470 números. Además hay ~150 `[[Category:X Crossover]]` escritas a mano (Millennium, Knightquest, Reign of the Supermen...).
 
 ## Números sueltos (issue) — `DC Database:Comic Template` (52,250 páginas)
 
@@ -397,7 +398,7 @@ Parámetros (normalizados `#` = número), frecuencia y ejemplo:
 | `CustomSection#` | 2 |  |
 | `CustomText#` | 2 |  |
 
-Muestras (20): `Final Crisis`; `Batman: Bad Seeds`; `Sinestro Corps War`; `Villains United`; `Lazarus Planet`
+Muestras (5; con las 19 de arcos de abajo suman 24 para el tipo evento/arco): `Final Crisis`; `Batman: Bad Seeds`; `Sinestro Corps War`; `Villains United`; `Lazarus Planet`
 
 <details><summary>Final Crisis</summary>
 
@@ -489,7 +490,7 @@ Parámetros (normalizados `#` = número), frecuencia y ejemplo:
 | `Distinguish#` | 8 | Amazons Attack Vol 2 |
 | `Distinguish#D` | 8 |  |
 
-Muestras (20): `Batman R.I.P.`; `Batman: Ten Nights of the Beast`; `Superman/Batman: Public Enemies`; `Hellblazer: Dangerous Habits`; `Superboy: Watery Grave`; `Supergirl: Who Is Superwoman?`; `Batman: Freakout`; `JLA: Divided We Fall`; `Doom Patrol: Robotman Unchained`; `Batman: Life After Death`; `Green Lantern: Baptism of Fire`; `Robin: Unmasked!`; `Wonder Woman: Stoned`; `Justice League Dark: War for the Books of Magic`; `Wonder Woman: A Murder of Crows`; `Wonder Woman: Three Hearts`; `Supergirl: Plain Sight`; `The Flash: Year One`; `Batman: Watchtower`
+Muestras (19): `Batman R.I.P.`; `Batman: Ten Nights of the Beast`; `Superman/Batman: Public Enemies`; `Hellblazer: Dangerous Habits`; `Superboy: Watery Grave`; `Supergirl: Who Is Superwoman?`; `Batman: Freakout`; `JLA: Divided We Fall`; `Doom Patrol: Robotman Unchained`; `Batman: Life After Death`; `Green Lantern: Baptism of Fire`; `Robin: Unmasked!`; `Wonder Woman: Stoned`; `Justice League Dark: War for the Books of Magic`; `Wonder Woman: A Murder of Crows`; `Wonder Woman: Three Hearts`; `Supergirl: Plain Sight`; `The Flash: Year One`; `Batman: Watchtower`
 
 <details><summary>Batman R.I.P.</summary>
 

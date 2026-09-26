@@ -1,18 +1,26 @@
-"""MCP server (stdio) over data/dcdb.sqlite: read-only queries of the DC Database dump.
+"""MCP server over data/dcdb.sqlite: read-only queries of the DC Database dump.
 
-    uv run python -m dcdb.server
+    uv run python -m dcdb.server                                   # stdio (Claude Desktop / Claude Code)
+    uv run python -m dcdb.server --http [--port 8000] [--rate 60]  # Streamable HTTP at /mcp (claude.ai)
+
+In HTTP mode, behind an HTTPS proxy, set DCDB_ALLOWED_HOSTS=your.domain (Host header check of the MCP SDK).
 """
+import argparse
+import ipaddress
 import json
+import logging
 import os
 import re
 import sqlite3
+import time
 from contextlib import closing
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
-from .wiki import norm_title
+from .wiki import _int, fmt_date, norm_title, parse_month
 
 DB = Path(os.environ.get("DCDB_PATH", Path(__file__).resolve().parent.parent / "data" / "dcdb.sqlite"))
 LICENCIA = ("Contenido del DC Database (https://dc.fandom.com), licencia CC BY-SA 3.0. "
@@ -31,6 +39,7 @@ ROLES = {
     "color": "colorist", "colorista": "colorist", "colourist": "colorist", "rotulacion": "letterer",
     "rotulación": "letterer", "rotulista": "letterer", "portada": "cover_artist", "tapa": "cover_artist",
 }
+KINDS = ("issue", "collection", "event", "series", "character", "staff", "other")
 
 mcp = MCPServer(
     "dc-database",
@@ -66,8 +75,8 @@ def resolve(con, title):
     return None, None
 
 
-def not_found(con, what, query):
-    return {"error": f"No encontré {what}: {query!r}", "sugerencias": _search(con, query, None, 5)[0]}
+def not_found(con, what, query, kind=None):
+    return {"error": f"No encontré {what}: {query!r}", "sugerencias": _search(con, query, kind, 5)[0]}
 
 
 def fts_query(query):
@@ -178,6 +187,8 @@ def buscar(query: str, kind: str | None = None, limit: int = 20) -> dict:
     kind opcional: issue, collection, event, series, character, staff, other.
     Devuelve título, tipo, fragmento y url de cada resultado. Sin kind, muestra hasta 3 números por serie y
     cuenta el resto en `mas_numeros_de_la_serie` (para verlos todos: kind="issue")."""
+    if kind and kind not in KINDS:
+        return {"error": f"kind inválido: {kind!r}", "kinds_validos": list(KINDS)}
     with closing(connect()) as con:
         res, omitted = _search(con, query, kind, max(1, min(limit, 100)))
         out = {"resultados": res}
@@ -194,7 +205,7 @@ def leer_pagina(title: str, max_chars: int = 20000) -> dict:
         page, redirected = resolve(con, title)
         if not page:
             return not_found(con, "la página", title)
-        text = page["plain_text"] or ""
+        text, max_chars = page["plain_text"] or "", max(0, max_chars)
         out = {"titulo": page["title"], "url": page["url"], "tipo": page["kind"], "plantilla": page["template"],
                "redirigido_desde": redirected, "campos": json.loads(page["fields"] or "{}")}
         if page["kind"] == "issue":
@@ -240,7 +251,8 @@ def _collection(con, page):
         "ORDER BY c.order_index", (page["id"],)).fetchall()
     return {
         "titulo": page["title"], "url": page["url"],
-        "fecha": "-".join(x for x in (f.get("Year"), f.get("Month"), f.get("Day")) if x) or None,
+        "fecha": fmt_date(_int(f.get("Year", ""), 1000, 2999), parse_month(f.get("Month", "")),
+                          _int(f.get("Day", ""), 1, 31)),
         "isbn": f.get("ISBN"), "arcos": f.get("StoryArcs"),
         "contenido": [{"orden": r["order_index"], "numero": r["title"] or r["issue_title"], "url": r["url"],
                        "historia": r["story_title"], "seccion": r["section"], "fecha_publicacion": r["pub_date"]}
@@ -258,7 +270,10 @@ def tomo(title: str) -> dict:
             alt, _ = resolve(con, f"{title} (Collected)")
             page = alt if alt and alt["kind"] == "collection" else page
         if not page:
-            return not_found(con, "el tomo", title)
+            return not_found(con, "el tomo", title, "collection")
+        if page["kind"] != "collection":
+            return not_found(con, "el tomo", title, "collection") | {
+                "error": f"{page['title']!r} no es un tomo (tipo: {page['kind']})", "url": page["url"]}
         return _collection(con, page) | {"licencia": LICENCIA}
 
 
@@ -293,12 +308,16 @@ def _event(con, page, limit):
 def evento(title: str, limit: int = 500) -> dict:
     """Evento, crossover o arco (p. ej. "Final Crisis", "Batman R.I.P."): números que lo integran ordenados por
     fecha de publicación, con la fuente de cada vínculo (parámetro Event del número, lista del evento, enlace
-    del título de la historia) y los tomos asociados."""
+    del título de la historia, plantilla de crossover del número, categoría "X Crossover") y tomos asociados."""
     with closing(connect()) as con:
         page, _ = resolve(con, title)
         if not page:
-            return not_found(con, "el evento", title)
-        return _event(con, page, max(1, limit)) | {"licencia": LICENCIA}
+            return not_found(con, "el evento", title, "event")
+        out = _event(con, page, max(1, limit))
+        if page["kind"] != "event" and not (out["numeros"] or out["tomos"] or out["otras_paginas"]):
+            return not_found(con, "el evento", title, "event") | {
+                "error": f"{page['title']!r} no es un evento (tipo: {page['kind']})", "url": page["url"]}
+        return out | {"licencia": LICENCIA}
 
 
 def canonical_person(con, person):
@@ -317,6 +336,8 @@ def run_de_autor(person: str, role: str = "writer", series: str | None = None, l
     """Números de un autor ordenados por fecha de publicación. role: writer, penciler, inker, colorist,
     letterer, editor, cover_artist (o "any" para cualquiera). series opcional: "Batman Vol 3" (un volumen)
     o "Batman" (todos los volúmenes). Ej.: run_de_autor("Chip Zdarsky", "writer", "Batman Vol 3")."""
+    if not person.strip():
+        return {"error": "Falta el nombre de la persona"}
     with closing(connect()) as con:
         name, url = canonical_person(con, person)
         role = ROLES.get(role.strip().lower(), role.strip().lower()) if role else "any"
@@ -334,8 +355,11 @@ def run_de_autor(person: str, role: str = "writer", series: str | None = None, l
             args.append(series.strip())
         sql += (" GROUP BY c.page_id ORDER BY i.pub_date IS NULL, i.pub_date, i.series, i.volume, i.num_sort "
                 "LIMIT ?")
-        rows = con.execute(sql, (*args, max(1, limit))).fetchall()
-        out = {"persona": name, "url_persona": url, "rol": role, "serie": series, "total": len(rows), "numeros": []}
+        limit = max(1, limit)
+        rows = con.execute(sql, (*args, limit + 1)).fetchall()
+        out = {"persona": name, "url_persona": url, "rol": role, "serie": series, "total": min(len(rows), limit),
+               "truncado": len(rows) > limit, "numeros": []}
+        rows = rows[:limit]
         for r in rows:
             titles = {s["index"]: s["title"] for s in json.loads(r["story_titles"] or "[]")}
             idx = [int(x) for x in (r["stories"] or "").split(",") if x and x != "0"]
@@ -359,8 +383,111 @@ def info_dump() -> dict:
         return meta | {"paginas_por_tipo": kinds, "licencia": LICENCIA}
 
 
+log = logging.getLogger("dcdb.http")
+MAX_BODY = 4 * 1024 * 1024
+
+
+def anon(ip):
+    """IP truncated for the logs: /24 for IPv4, /48 for IPv6."""
+    try:
+        bits = 24 if ipaddress.ip_address(ip).version == 4 else 48
+    except ValueError:
+        return "?"
+    return str(ipaddress.ip_network(f"{ip}/{bits}", strict=False).network_address)
+
+
+def describe(body):
+    """'tools/call:creditos', 'initialize'... from a JSON-RPC body. Arguments are never logged."""
+    try:
+        msgs = json.loads(body or b"null")
+    except ValueError:
+        return "-"
+    out = []
+    for m in msgs if isinstance(msgs, list) else [msgs]:
+        if isinstance(m, dict) and isinstance(m.get("method"), str):
+            p = m.get("params")
+            name = p.get("name") if m["method"] == "tools/call" and isinstance(p, dict) else None
+            out.append(f"{m['method']}:{name}" if isinstance(name, str) else m["method"])
+    return ",".join(out)[:120] or "-"
+
+
+async def reply(send, status, text):
+    await send({"type": "http.response.start", "status": status,
+                "headers": [(b"content-type", b"text/plain; charset=utf-8"), (b"retry-after", b"60")]})
+    await send({"type": "http.response.body", "body": text.encode()})
+
+
+class Guard:
+    """ASGI wrapper for the HTTP mode: per-IP rate limit (sliding minute) and one log line per request
+    (time, truncated IP, method, MCP method/tool, status, duration). No arguments or bodies are logged."""
+
+    def __init__(self, app, per_minute):
+        self.app, self.per_minute, self.hits = app, per_minute, {}
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        t0 = time.monotonic()
+        ip = (scope.get("client") or ("?", 0))[0]
+        if len(self.hits) > 10_000:
+            self.hits = {k: v for k, v in self.hits.items() if v and t0 - v[-1] < 60}
+        hits = [t for t in self.hits.get(ip, ()) if t0 - t < 60]
+        status, what = 429, "-"
+        if len(hits) >= self.per_minute:
+            self.hits[ip] = hits
+            await reply(send, 429, "Demasiados pedidos: esperá un minuto.\n")
+        else:
+            self.hits[ip] = hits + [t0]
+            body, more = b"", True
+            while more and len(body) <= MAX_BODY:
+                m = await receive()
+                body += m.get("body", b"")
+                more = m.get("more_body", False) and m["type"] == "http.request"
+            if len(body) > MAX_BODY:
+                status = 413
+                await reply(send, 413, "Pedido demasiado grande.\n")
+            else:
+                what, pending = describe(body), [{"type": "http.request", "body": body, "more_body": False}]
+
+                async def replay():
+                    return pending.pop() if pending else await receive()
+
+                async def send_status(m):
+                    nonlocal status
+                    if m["type"] == "http.response.start":
+                        status = m["status"]
+                    await send(m)
+
+                await self.app(scope, replay, send_status)
+        log.info("%s %s %s %s %d %.0fms", time.strftime("%Y-%m-%dT%H:%M:%S"), anon(ip), scope["method"], what,
+                 status, (time.monotonic() - t0) * 1000)
+
+
+def http_app(per_minute=60, allowed_hosts=()):
+    """Stateless Streamable HTTP app (JSON responses) wrapped in Guard."""
+    security = TransportSecuritySettings(
+        allowed_hosts=[*allowed_hosts, "127.0.0.1:*", "localhost:*"],
+        allowed_origins=[f"https://{h}" for h in allowed_hosts]) if allowed_hosts else None
+    app = mcp.streamable_http_app(stateless_http=True, json_response=True, transport_security=security)
+    return Guard(app, per_minute)
+
+
 def main():
-    mcp.run()
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--http", action="store_true", help="Streamable HTTP en /mcp en vez de stdio")
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--rate", type=int, default=60, help="pedidos por minuto por IP (modo HTTP)")
+    a = ap.parse_args()
+    if not a.http:
+        return mcp.run()
+    import uvicorn
+
+    logging.basicConfig(format="%(message)s")
+    log.setLevel(logging.INFO)
+    hosts = [h.strip() for h in os.environ.get("DCDB_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    # uvicorn's own access log is off (it has full IPs); behind a local proxy it takes the IP from X-Forwarded-For.
+    uvicorn.run(http_app(a.rate, hosts), host=a.host, port=a.port, log_level="warning")
 
 
 if __name__ == "__main__":

@@ -36,6 +36,8 @@ COVER_RE = re.compile(r"^CoverArtist(\d+)$", re.I)
 VARIANT_RE = re.compile(r"^Cover(\d+)Artist(\d+)$", re.I)
 ISSUE_TITLE_RE = re.compile(r"^(.+) Vol (\d+) (.+?)( \(Digital\))?$")
 ISSUE_LINK_RE = re.compile(r"^.+ Vol \d+ \S")
+BOLD_RE = re.compile(r"'''(.*?)'''", re.S)
+HEAD_LINK_RE = re.compile(r"(?:^|[\s'\"(>])\[\[\s*([^\]|]+)")  # links not glued to a word ("Post-[[Crisis]]")
 COMMENT_RE = re.compile(r"<!--.*?(?:-->|$)", re.S)
 REF_RE = re.compile(r"<ref[^>/]*/>|<ref[^>]*>.*?</ref>", re.S | re.I)
 BR_RE = re.compile(r"<br\s*/?>", re.I)
@@ -199,6 +201,8 @@ def clean_person(v):
     s = textify(v, link_target=True).split("\n")[0].strip().rstrip("?").strip()
     s = re.sub(r"\s+", " ", s)
     low = s.lower()
+    if len(s) > 80:  # prose pasted into a credit field
+        return None
     if not s or low in ("uncredited", "n/a", "na", "unknown", "-", "&mdash;", "—", "?"):
         return "Uncredited" if low in ("uncredited", "n/a", "na") else None
     return s
@@ -318,6 +322,26 @@ def categories(code):
             if str(l.title).strip().lower().startswith("category:")]
 
 
+def crossover_candidates(name, text):
+    """Navbox template ({{Final Crisis}}, {{Batman RIP}}...) -> candidate event titles. The header (first bold
+    span, '''[[Final Crisis]] Crossover''') decides when it links a non-issue page; otherwise the first
+    {{Crossover|title=}}, then the template name. The caller keeps the first one that is an event page."""
+    text = strip_comments(text)
+    bold = BOLD_RE.search(text.split("{{Crossover", 1)[0])
+    head = [t.strip() for t in HEAD_LINK_RE.findall(bold.group(1))] if bold else []
+    head = [t for t in head if not ISSUE_LINK_RE.match(t)
+            and not t.lower().lstrip(":").startswith(("file:", "image:", "category:"))]
+    if head:
+        return [norm_title(t) for t in head]
+    out = []
+    for t in mw.parse(text).filter_templates():
+        if str(t.name).strip().lower() == "crossover" and t.has("title"):
+            v = t.get("title").value
+            out = [str(l.title) for l in v.filter_wikilinks()] or [textify(str(v))]
+            break
+    return [norm_title(x) for x in out + [name] if x.strip()]
+
+
 def process_page(page):
     """(id, title, text, timestamp) of a ns-0 content page -> dict of rows for ingest."""
     pid, title, text, ts = page
@@ -335,6 +359,11 @@ def process_page(page):
             if len(t) <= 300:
                 fields[k] = t
     cats = categories(code)
+    templates = []
+    for t in code.filter_templates(recursive=False):
+        name = strip_comments(str(t.name)).strip()
+        if not name.startswith(("DC Database:", "#")):
+            templates.append(norm_title(name.removeprefix("Template:")))
     for t in code.filter_templates(recursive=False):
         if str(t.name).strip().startswith("DC Database:"):
             code.remove(t)
@@ -351,6 +380,8 @@ def process_page(page):
         "headline": headline,
         "fields": fields, "credits": [], "issue": None, "contents": [], "members": [],
         "categories": cats,
+        # Top-level templates of issues: crossover navboxes ({{Final Crisis}}) mean event membership.
+        "templates": sorted(set(templates)) if kind == "issue" else [],
     }
     if kind in ("issue", "collection"):
         row["credits"] = [(pid, *c) for c in credits(p, kind)]
