@@ -63,26 +63,8 @@ Crisis y Sinestro Corps War, run de Zdarsky, búsqueda de Zur-En-Arrh) y levanta
 
 ## 4. Conectarlo a Claude
 
-**Claude Code** (desde cualquier carpeta):
-
-```bash
-claude mcp add dc-database --scope user -- uv --directory C:\Users\dimar\dc-wiki-mcp run python -m dcdb.server
-```
-
-**Claude Desktop**: en `%APPDATA%\Claude\claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "dc-database": {
-      "command": "uv",
-      "args": ["--directory", "C:\\Users\\dimar\\dc-wiki-mcp", "run", "python", "-m", "dcdb.server"]
-    }
-  }
-}
-```
-
-Reiniciar Claude Desktop. Para usar otra base: variable de entorno `DCDB_PATH`.
+**Claude Code y Claude Desktop en Windows**: ver [Uso local en Windows](#uso-local-en-windows).
+Para usar otra base: variable de entorno `DCDB_PATH`.
 
 Para una prueba sin tocar la configuración (así se verificó con Claude Code):
 
@@ -94,6 +76,50 @@ claude -p "Créditos de Batman Vol 1 #676" --mcp-config mcp.json --allowedTools 
 **claude.ai** (conector remoto): `uv run python -m dcdb.server --http` sirve Streamable HTTP en
 `http://127.0.0.1:8000/mcp` con rate limit por IP y logs mínimos; para publicarlo hace falta un servidor con HTTPS,
 ver [`docs/despliegue.md`](docs/despliegue.md).
+
+## Uso local en Windows
+
+Se registra con el Python del entorno virtual y rutas absolutas: no hace falta `uv`, una terminal abierta ni estar
+parado en el repo. `PYTHONPATH` apunta al repo para que `-m dcdb.server` encuentre el paquete; la base se busca en
+`data\dcdb.sqlite` relativa a `dcdb\server.py`, no al directorio de arranque. Requisito: haber corrido `uv sync` una vez
+(crea `.venv`).
+
+**Claude Code** (alcance de usuario, disponible en cualquier proyecto):
+
+```powershell
+claude mcp add dc-database --scope user -e "PYTHONPATH=C:\Users\dimar\dc-wiki-mcp" -- "C:\Users\dimar\dc-wiki-mcp\.venv\Scripts\python.exe" -m dcdb.server
+claude mcp get dc-database   # debe decir "Connected"
+```
+
+**Claude Desktop**: agregar a `%APPDATA%\Claude\claude_desktop_config.json` (si ya tiene otras claves, sumar solo
+`mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "dc-database": {
+      "command": "C:\\Users\\dimar\\dc-wiki-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "dcdb.server"],
+      "env": { "PYTHONPATH": "C:\\Users\\dimar\\dc-wiki-mcp" }
+    }
+  }
+}
+```
+
+Después cerrar Claude Desktop del todo (también desde el ícono de la bandeja) y volver a abrirlo; en Claude Code, abrir
+una sesión nueva. Si movés el repo, actualizar las dos rutas en ambos lugares.
+
+**Actualizar el dump** (desde Git Bash, en el repo; ver [Actualizar](#actualizar)):
+
+```bash
+uv run python -m dcdb.refresh                          # solo lo editado desde el dump/último refresco
+./actualizar.sh ruta/al/endcdatabase_pages_current.xml.7z   # dump nuevo bajado a mano: reindexa, refresca y testea
+```
+
+El indexado arma `dcdb.sqlite.tmp` y al final la reemplaza; en Windows ese reemplazo falla si algún proceso tiene la
+base abierta, así que antes de `actualizar.sh` hay que cerrar Claude Desktop y las sesiones de Claude Code (todas
+levantan el servidor). `dcdb.refresh` sí puede correr con ellos abiertos. La configuración no cambia. `info_dump()` muestra la fecha del dump y del
+último refresco.
 
 ## Herramientas
 
