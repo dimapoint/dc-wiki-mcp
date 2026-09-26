@@ -9,7 +9,7 @@ fechas, tomos recopilatorios y eventos sin leer el sitio en vivo.
 - `dcdb/refresh.py`: trae por la API de MediaWiki las páginas editadas después del dump.
 - `dcdb/server.py`: servidor MCP de solo lectura (stdio o Streamable HTTP con rate limit y logs mínimos).
 - `docs/muestras.md`: muestras reales de cada plantilla y los hallazgos que definieron el esquema.
-- `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el código está; falta elegir hosting).
+- `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el modo HTTP está listo; por ahora queda local).
 
 Requisitos: [uv](https://docs.astral.sh/uv/). El proyecto usa Python 3.14.7 (`.python-version`); uv lo instala solo
 si es reciente (uv 0.8 no conoce 3.14.7: `uv self update`, o `pip install -U uv` si no lo instalaste con el script).

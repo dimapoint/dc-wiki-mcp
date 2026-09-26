@@ -65,4 +65,5 @@ Fly.io/Railway con un volumen persistente para la SQLite; misma arquitectura, ge
 4. Cron diario para las páginas editadas: `uv run python -m dcdb.refresh` (y `actualizar.sh` cuando salga un dump).
 5. En claude.ai: *Settings → Connectors → Add custom connector* con `https://dc.tu-dominio.com/mcp`.
 
-Decime qué opción preferís (y si tenés VPS o dominio) y lo dejo andando.
+**Decisión (2026-09-26): por ahora queda local** (Claude Desktop / Claude Code por stdio). El modo HTTP queda listo
+para cuando se quiera publicar con cualquiera de estas opciones.
