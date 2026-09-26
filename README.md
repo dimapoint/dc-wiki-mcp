@@ -10,6 +10,9 @@ fechas, tomos recopilatorios y eventos sin leer el sitio en vivo.
 - `dcdb/server.py`: servidor MCP de solo lectura (stdio o Streamable HTTP con rate limit y logs mínimos).
 - `docs/muestras.md`: muestras reales de cada plantilla y los hallazgos que definieron el esquema.
 - `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el modo HTTP está listo; por ahora queda local).
+- `actualizar.sh`: dump nuevo → reindexa, refresca y corre los tests.
+- `.claude/hooks/session-start.sh`: prepara todo al abrir una sesión de Claude Code en la nube (ver *Bajar el dump*).
+- `CLAUDE.md`: guía del repo para Claude Code (comandos, reglas del proyecto, arquitectura).
 
 Requisitos: [uv](https://docs.astral.sh/uv/). El proyecto usa Python 3.14.7 (`.python-version`); uv lo instala solo
 si es reciente (uv 0.8 no conoce 3.14.7: `uv self update`, o `pip install -U uv` si no lo instalaste con el script).
@@ -37,8 +40,11 @@ curl -L -o data/raw/dump.xml.7z https://github.com/dimapoint/dc-wiki-mcp/release
 7z e -odata/raw data/raw/dump.xml.7z && rm data/raw/dump.xml.7z    # Linux: apt install 7zip (o p7zip-full)
 ```
 
-En una sesión de Claude Code en la nube el contenedor es efímero: estos pasos más la indexación se repiten en cada
-sesión nueva.
+En una sesión de Claude Code en la nube el contenedor es efímero, así que estos pasos más la indexación se repiten en
+cada sesión nueva. De eso se encarga el hook `SessionStart` (`.claude/hooks/session-start.sh`, registrado en
+`.claude/settings.json`): actualiza uv si no conoce Python 3.14.7, corre `uv sync`, baja el dump del release, lo
+descomprime e indexa. Cada paso se saltea si su resultado ya existe, y fuera de la nube (`CLAUDE_CODE_REMOTE` distinto
+de `true`) no hace nada.
 
 ## 2. Indexar
 
@@ -59,7 +65,11 @@ uv run pytest
 `tests/test_wiki.py` prueba el parser. `tests/test_pipeline.py` arma una base con un dump sintético y prueba ingesta,
 refresco (con la API simulada), rate limit y el servidor HTTP con un cliente MCP real; no necesita la base ni red.
 `tests/test_fase4.py` prueba los casos de aceptación contra la base (créditos de Batman #676 y #670, tomos de Final
-Crisis y Sinestro Corps War, run de Zdarsky, búsqueda de Zur-En-Arrh) y levanta el servidor real por stdio.
+Crisis y Sinestro Corps War, run de Zdarsky, búsqueda de Zur-En-Arrh) y levanta el servidor real por stdio; se saltea si no existe `data/dcdb.sqlite`.
+
+```bash
+uv run pytest tests/test_pipeline.py::test_refresh   # un test suelto
+```
 
 ## 4. Conectarlo a Claude
 
@@ -74,8 +84,10 @@ claude -p "Créditos de Batman Vol 1 #676" --mcp-config mcp.json --allowedTools 
 ```
 
 **claude.ai** (conector remoto): `uv run python -m dcdb.server --http` sirve Streamable HTTP en
-`http://127.0.0.1:8000/mcp` con rate limit por IP y logs mínimos; para publicarlo hace falta un servidor con HTTPS,
-ver [`docs/despliegue.md`](docs/despliegue.md).
+`http://127.0.0.1:8000/mcp` con rate limit por IP y logs mínimos (una línea por pedido con IP truncada y nombre de la
+herramienta, nunca los argumentos). Opciones: `--host`, `--port`, `--rate N` (pedidos por minuto por IP, 60 por
+defecto); detrás de un proxy, `DCDB_ALLOWED_HOSTS=dominio1,dominio2` habilita esos `Host`. Para publicarlo hace falta
+un servidor con HTTPS, ver [`docs/despliegue.md`](docs/despliegue.md).
 
 ## Uso local en Windows
 
@@ -132,8 +144,8 @@ Todas son de solo lectura y devuelven la `url` de origen de cada página más un
 | `numero(series, volume, number)` | fechas de tapa y publicación, historias, créditos, tomos donde se reimprime, eventos |
 | `creditos(series, volume, number)` | créditos por historia + portada/variantes y editor ejecutivo |
 | `tomo(title)` | números que recopila, en orden, con título de historia |
-| `evento(title)` | números del evento/crossover/arco ordenados por fecha de publicación, y tomos asociados |
-| `run_de_autor(person, role="writer", series?)` | números de un autor por fecha; `series` = `"Batman Vol 3"` o `"Batman"`; `role="any"` para todos |
+| `evento(title, limit=500)` | números del evento/crossover/arco ordenados por fecha de publicación, y tomos asociados |
+| `run_de_autor(person, role="writer", series?, limit=1000)` | números de un autor por fecha; `series` = `"Batman Vol 3"` o `"Batman"`; `role="any"` para todos |
 | `info_dump()` | fecha del dump, páginas por tipo, fecha de indexación |
 
 ## Cómo se interpretan los datos
