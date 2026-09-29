@@ -9,10 +9,15 @@ fechas, tomos recopilatorios y eventos sin leer el sitio en vivo.
 - `dcdb/refresh.py`: trae por la API de MediaWiki las páginas editadas después del dump.
 - `dcdb/server.py`: servidor MCP de solo lectura (stdio o Streamable HTTP con rate limit y logs mínimos).
 - `docs/muestras.md`: muestras reales de cada plantilla y los hallazgos que definieron el esquema.
-- `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el modo HTTP y los archivos de `deploy/` están listos; falta elegir VPS y dominio).
+- `deploy/`: `docker-compose.yml` (servidor + refresco diario + túnel de ngrok en Docker Desktop, ver
+  [Publicarlo desde tu PC](#publicarlo-para-claudeai-desde-tu-pc-docker-desktop--ngrok)), `Dockerfile`, y para un VPS
+  `dcdb.service` (systemd), `Caddyfile` (TLS) y `cron`.
+- `docs/despliegue.md`: opciones para publicarlo como conector de claude.ai (Fase 5). Hoy está publicado con Docker
+  Desktop + ngrok.
 - `actualizar.sh`: dump nuevo → reindexa, refresca y corre los tests.
 - `.claude/hooks/session-start.sh`: prepara todo al abrir una sesión de Claude Code en la nube (ver *Bajar el dump*).
-- `CLAUDE.md`: guía del repo para Claude Code (comandos, reglas del proyecto, arquitectura).
+- `CLAUDE.md` / `AGENTS.md`: guía del repo para agentes (Claude Code, Codex...): comandos, reglas, arquitectura y
+  operación del despliegue.
 
 Requisitos: [uv](https://docs.astral.sh/uv/). El proyecto usa Python 3.14.7 (`.python-version`); uv lo instala solo
 si es reciente (uv 0.8 no conoce 3.14.7: `uv self update`, o `pip install -U uv` si no lo instalaste con el script).
@@ -87,7 +92,9 @@ claude -p "Créditos de Batman Vol 1 #676" --mcp-config mcp.json --allowedTools 
 `http://127.0.0.1:8000/mcp` con rate limit por IP y logs mínimos (una línea por pedido con IP truncada y nombre de la
 herramienta, nunca los argumentos). Opciones: `--host`, `--port`, `--rate N` (pedidos por minuto por IP, 60 por
 defecto); detrás de un proxy, `DCDB_ALLOWED_HOSTS=dominio1,dominio2` habilita esos `Host`. Para publicarlo hace falta
-un servidor con HTTPS, ver [`docs/despliegue.md`](docs/despliegue.md).
+una URL HTTPS: gratis desde tu PC con
+[Docker Desktop + ngrok](#publicarlo-para-claudeai-desde-tu-pc-docker-desktop--ngrok), o en un VPS
+([`docs/despliegue.md`](docs/despliegue.md)).
 
 ## Uso local en Windows
 
@@ -132,6 +139,76 @@ El indexado arma `dcdb.sqlite.tmp` y al final la reemplaza; en Windows ese reemp
 base abierta, así que antes de `actualizar.sh` hay que cerrar Claude Desktop y las sesiones de Claude Code (todas
 levantan el servidor). `dcdb.refresh` sí puede correr con ellos abiertos. La configuración no cambia. `info_dump()` muestra la fecha del dump y del
 último refresco.
+
+## Publicarlo para claude.ai desde tu PC (Docker Desktop + ngrok)
+
+`deploy/docker-compose.yml` levanta tres contenedores, gratis y sin abrir puertos del router:
+
+- `dcdb`: el servidor por HTTP en el puerto 8000, **sin publicarlo en la PC** (solo lo alcanza el túnel).
+- `refresh`: corre `dcdb.refresh` al arrancar y después cada 24 h (ante 402/403/429 frena y espera al día siguiente).
+- `tunnel`: ngrok, reenvía únicamente a `dcdb:8000`. Es lo único expuesto a internet.
+
+La base se monta desde `data/` (`../data:/app/data`). El conector responde mientras la PC y Docker Desktop estén
+prendidos. El plan gratis de ngrok tiene topes de transferencia y pedidos por mes.
+
+1. Cuenta gratis en [ngrok](https://ngrok.com): el
+   [authtoken](https://dashboard.ngrok.com/get-started/your-authtoken) y el dominio estático gratis (sección
+   *Domains*, del estilo `algo.ngrok-free.app` o `algo.ngrok-free.dev`).
+2. Crear `deploy/.env` (está en `.gitignore`: no commitearlo ni pegar el token en ningún chat):
+   ```
+   NGROK_AUTHTOKEN=tu-token
+   DCDB_HOST=algo.ngrok-free.dev
+   ```
+   `DCDB_HOST` es solo el dominio, sin `https://` ni `/mcp`: lo usan el túnel (`--url`) y el servidor
+   (`DCDB_ALLOWED_HOSTS`).
+3. **Windows**: Docker Desktop → *Settings → Resources → File sharing* → agregar la carpeta `data` del repo (por
+   ejemplo `C:\Users\dimar\dc-wiki-mcp\data`) → *Apply & restart*. Sin eso el volumen falla con
+   `the path ... is not shared from the host`. Queda guardado; solo hay que repetirlo si el repo cambia de ruta.
+4. Levantar todo:
+   ```bash
+   docker compose -f deploy/docker-compose.yml up -d --build
+   ```
+5. Verificar con pedidos MCP (un `GET /` responde 404, no sirve como prueba). Local, desde adentro del contenedor
+   porque el puerto no está publicado:
+   ```bash
+   docker compose -f deploy/docker-compose.yml exec -T dcdb python -c "import urllib.request as u; print(u.urlopen(u.Request('http://localhost:8000/mcp', b'{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-03-26\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test\",\"version\":\"0\"}}}', {'Content-Type': 'application/json', 'Accept': 'application/json, text/event-stream'})).read().decode())"
+   ```
+   Público (`initialize` y una búsqueda real, que tiene que traer resultados con su `url`):
+   ```bash
+   curl -sS -m 30 -X POST https://algo.ngrok-free.dev/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}'
+   curl -sS -m 30 -X POST https://algo.ngrok-free.dev/mcp -H "Content-Type: application/json" -H "Accept: application/json, text/event-stream" -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"buscar","arguments":{"query":"Zur-En-Arrh","limit":3}}}'
+   ```
+6. En claude.ai: *Settings → Connectors → Add custom connector* con `https://algo.ngrok-free.dev/mcp`.
+
+**Operación**:
+
+```bash
+docker compose -f deploy/docker-compose.yml ps            # estado de los tres contenedores
+docker compose -f deploy/docker-compose.yml logs dcdb     # una línea por pedido: IP truncada, herramienta, status
+docker compose -f deploy/docker-compose.yml logs refresh  # páginas actualizadas en cada pasada
+docker compose -f deploy/docker-compose.yml up -d         # después de cambiar deploy/.env (p. ej. token nuevo)
+docker compose -f deploy/docker-compose.yml down          # detener todo
+```
+
+El log de `tunnel` sale vacío (ngrok no escribe a stdout sin `--log stdout`); sus errores aparecen en la respuesta
+pública. Antes de `actualizar.sh` hay que bajar los contenedores: tienen la base abierta y en Windows el reemplazo de
+`dcdb.sqlite` falla.
+
+**Problemas conocidos**:
+
+| síntoma | causa / qué hacer |
+|---|---|
+| `ERR_NGROK_15013` | el dominio no está reclamado en la cuenta: crearlo en *Domains* y ponerlo en `DCDB_HOST` |
+| `ERR_NGROK_8012` | el túnel llega pero no alcanza a `dcdb`: revisar `ps` y `logs dcdb` antes de tocar el túnel |
+| `421` (o `403`) del servidor | `DCDB_HOST` no coincide exactamente con el dominio de ngrok (chequeo de `Host`/`Origin` del SDK) |
+| `is not shared from the host` | falta el paso 3 (File sharing) |
+| build: `No interpreter found for Python 3.14.7` | la imagen base tiene que ser `uv:python3.14-trixie-slim`; el tag `bookworm` quedó en Python 3.14.2 |
+| Docker Desktop queda en "starting" | `docker desktop restart` (`docker desktop status` para ver el estado) |
+
+**Protección**: no tiene autenticación a propósito (contenido público CC BY-SA, solo lectura), solo el rate limit de
+60 pedidos por minuto por IP; la IP real llega por `X-Forwarded-For`. claude.ai solo acepta conectores sin
+autenticación o con OAuth, así que un Basic Auth o un token fijo en ngrok lo cortaría. Lo compatible es restringir por
+IP en ngrok (*traffic policy*) a los rangos de salida que publica Anthropic.
 
 ## Herramientas
 
@@ -199,6 +276,24 @@ DUMP_URL="https://…/endcdatabase_pages_current.xml.7z" DCDB_CONTACT="tu@mail" 
 
 Baja el dump con un user agent honesto (`dc-wiki-mcp` + tu contacto), frena si recibe 402/403/429, descomprime,
 reindexa, corre `dcdb.refresh` y los tests.
+
+## Reinstalar desde cero
+
+En GitHub están el código, `deploy/`, las docs y el dump (release `data-dump-2026-09-20`). **No están**, y se pierden si
+borrás la carpeta: `data/dcdb.sqlite` (se regenera), `deploy/.env` (se vuelve a crear), `.venv` (`uv sync`) y
+`.claude/settings.local.json` (permisos locales de Claude Code). Si el conector está andando, antes de borrar:
+`docker compose -f deploy/docker-compose.yml down`.
+
+```bash
+git clone https://github.com/dimapoint/dc-wiki-mcp.git && cd dc-wiki-mcp
+gh release download data-dump-2026-09-20 -D data/raw          # o el curl de "Bajar el dump"
+7z e -odata/raw data/raw/endcdatabase_pages_current.xml.7z
+uv sync && uv run python -m dcdb.ingest
+```
+
+Las ediciones posteriores al dump vuelven con la primera pasada de `dcdb.refresh` (el contenedor `refresh` la hace
+solo). Para el conector: crear `deploy/.env` y `up -d --build` (File sharing solo si cambió la ruta). Para Claude
+Code/Desktop: [Uso local en Windows](#uso-local-en-windows).
 
 ## Atribución y licencia del contenido
 
