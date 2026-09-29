@@ -52,8 +52,8 @@ without `data/dcdb.sqlite`; `test_wiki.py` and `test_pipeline.py` (synthetic min
   `/Gallery` pages (`IN_FTS`) are excluded.
 - `dcdb/refresh.py` — `generator=recentchanges` + revisions from `meta.refreshed_until` (or `dump_date`);
   `delete_page()` removes a page and everything derived from it, including the FTS row via the `'delete'` command
-  (must match exactly what was inserted, or the index corrupts), then `insert_row()` + `link()`. Edits/new
-  pages/redirects only; deletions and moves wait for a new dump.
+  (must match exactly what was inserted, or the index corrupts), then `insert_row()` + `link()`. Edits, new
+  pages, redirects, deletions, restores and moves (delete/move logs, refetched by title; missing = removed).
 - `dcdb/server.py` — `MCPServer` tools, each opening a read-only SQLite connection. Title lookups go through
   `resolve()` (redirects, case-insensitive fallback). `--http` wraps the SDK's stateless Streamable HTTP app in
   `Guard` (per-IP rate limit, one log line per request with truncated IP and tool name, never arguments).
@@ -64,4 +64,4 @@ Event membership (`event_membership.source`) comes from several signals, and res
 in the dump.
 
 Schema changes require re-running the ingest (refresh needs the `transclusions`/`crossover_templates` tables).
-Phase 5 (public hosting for claude.ai) is ready in code but deliberately not deployed; options are in `docs/despliegue.md`.
+Phase 5 (public hosting for claude.ai): code and `deploy/` files (systemd, Caddy, cron, Dockerfile) are ready; not deployed because it needs the user's VPS/domain. Options in `docs/despliegue.md`.

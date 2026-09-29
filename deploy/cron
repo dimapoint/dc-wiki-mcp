@@ -1,0 +1,2 @@
+# /etc/cron.d/dcdb — refresca las páginas editadas todos los días (3:17), como el usuario del servicio.
+17 3 * * * dcdb cd /opt/dc-wiki-mcp && /usr/local/bin/uv run python -m dcdb.refresh >> /var/log/dcdb-refresh.log 2>&1

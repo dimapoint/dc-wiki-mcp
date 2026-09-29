@@ -9,7 +9,7 @@ fechas, tomos recopilatorios y eventos sin leer el sitio en vivo.
 - `dcdb/refresh.py`: trae por la API de MediaWiki las páginas editadas después del dump.
 - `dcdb/server.py`: servidor MCP de solo lectura (stdio o Streamable HTTP con rate limit y logs mínimos).
 - `docs/muestras.md`: muestras reales de cada plantilla y los hallazgos que definieron el esquema.
-- `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el modo HTTP está listo; por ahora queda local).
+- `docs/despliegue.md`: publicarlo como conector de claude.ai (Fase 5: el modo HTTP y los archivos de `deploy/` están listos; falta elegir VPS y dominio).
 - `actualizar.sh`: dump nuevo → reindexa, refresca y corre los tests.
 - `.claude/hooks/session-start.sh`: prepara todo al abrir una sesión de Claude Code en la nube (ver *Bajar el dump*).
 - `CLAUDE.md`: guía del repo para Claude Code (comandos, reglas del proyecto, arquitectura).
@@ -186,8 +186,8 @@ uv run python -m dcdb.refresh          # desde el último refresco o la fecha de
 Pide `recentchanges` + el wikitext de cada página cambiada, con user agent honesto
 (`dc-wiki-mcp/0.1 (+https://github.com/dimapoint/dc-wiki-mcp)`) y al menos 1 s entre pedidos; ante 402/403/429 frena
 sin reintentar. Reemplaza la página y todo lo derivado (créditos, contenidos, eventos, búsqueda) y deja la fecha en
-`info_dump().refreshed_until`. Toma ediciones, páginas nuevas y redirecciones; los borrados y traslados esperan al
-próximo dump, y la API guarda cambios de unos 90 días. Medido el 2026-09-26: los 6 días desde el dump fueron 2.156
+`info_dump().refreshed_until`. Toma ediciones, páginas nuevas, redirecciones, borrados, restauraciones y traslados (por los
+registros `delete` y `move`); la API guarda cambios de unos 90 días. Medido el 2026-09-26: los 6 días desde el dump fueron 2.156
 páginas en 44 pedidos, 2 minutos.
 
 **Dump nuevo** (reindexa todo y después refresca):

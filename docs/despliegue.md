@@ -54,16 +54,15 @@ Fly.io/Railway con un volumen persistente para la SQLite; misma arquitectura, ge
 
 ### Pasos con A
 
-1. Copiar el repo y `data/dcdb.sqlite` al VPS (`scp`), `uv sync`.
-2. Servicio (systemd) con el comando de arriba.
-3. Caddy delante, solo para TLS:
-   ```
-   dc.tu-dominio.com {
-       reverse_proxy 127.0.0.1:8000
-   }
-   ```
-4. Cron diario para las páginas editadas: `uv run python -m dcdb.refresh` (y `actualizar.sh` cuando salga un dump).
+Los archivos listos están en `deploy/`: `dcdb.service` (systemd), `Caddyfile` (TLS), `cron` (refresco diario) y
+`Dockerfile` (alternativa con contenedor / Fly.io / Railway y un volumen para `data/`).
+
+1. Copiar el repo y `data/dcdb.sqlite` a `/opt/dc-wiki-mcp` en el VPS (`scp`), crear el usuario `dcdb`, `uv sync`.
+2. `deploy/dcdb.service` → `/etc/systemd/system/` (cambiar `DCDB_ALLOWED_HOSTS`), `systemctl enable --now dcdb`.
+3. `deploy/Caddyfile` → `/etc/caddy/Caddyfile` (cambiar el dominio).
+4. `deploy/cron` → `/etc/cron.d/dcdb`. Toma ediciones, páginas nuevas, redirecciones, borrados y traslados; cuando
+   salga un dump nuevo, `./actualizar.sh`.
 5. En claude.ai: *Settings → Connectors → Add custom connector* con `https://dc.tu-dominio.com/mcp`.
 
-**Decisión (2026-09-26): por ahora queda local** (Claude Desktop / Claude Code por stdio). El modo HTTP queda listo
-para cuando se quiera publicar con cualquiera de estas opciones.
+**Estado (2026-09-29): el código y los archivos de despliegue están listos; falta el VPS y el dominio**, que
+dependen de tu cuenta. Mientras tanto se usa local (Claude Desktop / Claude Code por stdio).

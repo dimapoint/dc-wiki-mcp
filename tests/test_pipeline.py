@@ -82,7 +82,7 @@ def test_refresh(db):
     with sqlite3.connect(db) as con:
         res = refresh.refresh(con, fetch=lambda since: seen.append(since) or changes)
         con.execute("INSERT INTO pages_fts(pages_fts) VALUES ('integrity-check')")
-    assert seen == ["2026-01-09T00:00:00Z"] and res[1:] == ("2026-02-01T00:00:00Z", 2, 1)
+    assert seen == ["2026-01-09T00:00:00Z"] and res[1:] == ("2026-02-01T00:00:00Z", 2, 1, 0)
     assert server.creditos("Alpha", 1, "1")["historias"][0]["creditos"]["writer"] == ["Jane Doe"]
     assert titles(server.buscar("Rewritten"), "resultados") == ["Alpha Vol 1 1"]
     assert titles(server.buscar("First Story"), "resultados") == []
@@ -90,6 +90,20 @@ def test_refresh(db):
     assert [x["numero"] for x in server.tomo("Alpha Omnibus")["contenido"]] == ["Alpha Vol 1 1", "Alpha Vol 1 3"]
     assert [x["titulo"] for x in server.run_de_autor("Joe Writer")["numeros"]] == ["Alpha Vol 1 3"]
     assert server.info_dump()["refreshed_until"] == "2026-02-01T00:00:00Z"
+
+
+def test_refresh_removals(db):
+    changes = [{"title": "Alpha Vol 1 3", "missing": True}, {"title": "Alpha Vol 1 2", "missing": True},
+               {"pageid": 10, "title": "Alpha Vol 1 4", "timestamp": "2026-03-01T00:00:00Z",
+                "content": issue(4, "Joe Writer", "Fourth", "{{XO}}")}]
+    with sqlite3.connect(db) as con:
+        res = refresh.refresh(con, fetch=lambda since: changes)
+        con.execute("INSERT INTO pages_fts(pages_fts) VALUES ('integrity-check')")
+        assert con.execute("SELECT count(*) FROM redirects WHERE from_title = 'Alpha Vol 1 2'").fetchone() == (0,)
+    assert res[1:] == ("2026-03-01T00:00:00Z", 1, 0, 2)
+    assert titles(server.evento("Big Event")) == ["Alpha Vol 1 1", "Alpha Vol 1 4"]
+    assert titles(server.buscar("Alpha Vol 1 3"), "resultados") == []
+    assert titles(server.buscar("Fourth"), "resultados") == ["Alpha Vol 1 4"]
 
 
 def test_rate_limit():

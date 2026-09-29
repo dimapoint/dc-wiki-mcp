@@ -1,0 +1,17 @@
+# /etc/systemd/system/dcdb.service — systemctl enable --now dcdb
+[Unit]
+Description=DC Database MCP (Streamable HTTP)
+After=network.target
+
+[Service]
+User=dcdb
+WorkingDirectory=/opt/dc-wiki-mcp
+Environment=DCDB_ALLOWED_HOSTS=dc.tu-dominio.com
+ExecStart=/usr/local/bin/uv run python -m dcdb.server --http --host 127.0.0.1 --port 8000 --rate 60
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/dc-wiki-mcp/data
+
+[Install]
+WantedBy=multi-user.target
