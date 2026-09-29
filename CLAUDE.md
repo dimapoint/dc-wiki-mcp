@@ -64,4 +64,5 @@ Event membership (`event_membership.source`) comes from several signals, and res
 in the dump.
 
 Schema changes require re-running the ingest (refresh needs the `transclusions`/`crossover_templates` tables).
-Phase 5 (public hosting for claude.ai): code and `deploy/` files (systemd, Caddy, cron, Dockerfile) are ready; not deployed because it needs the user's VPS/domain. Options in `docs/despliegue.md`.
+Phase 5 (public hosting for claude.ai): code and `deploy/` files (systemd, Caddy, cron, Dockerfile) are ready. Deployed via the Docker Desktop + ngrok variant (`deploy/docker-compose.yml`, secrets in gitignored
+`deploy/.env`); the VPS option is not. Options in `docs/despliegue.md`.

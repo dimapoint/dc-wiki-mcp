@@ -1,9 +1,11 @@
 # Docker Desktop en tu PC, gratis: servidor + refresco diario + túnel de ngrok (URL pública HTTPS sin abrir puertos).
 #   1. Cuenta gratis en ngrok.com: copiar el authtoken y reclamar el dominio estático gratis (Domains), algo como
-#      nombre-raro.ngrok-free.app
+#      nombre-raro.ngrok-free.app (o .ngrok-free.dev)
 #   2. Crear deploy/.env con:  NGROK_AUTHTOKEN=...   y   DCDB_HOST=nombre-raro.ngrok-free.app
-#   3. docker compose -f deploy/docker-compose.yml up -d --build
-#   4. claude.ai -> Settings -> Connectors -> Add custom connector: https://nombre-raro.ngrok-free.app/mcp
+#   3. Windows: Docker Desktop -> Settings -> Resources -> File sharing -> agregar la carpeta data\ del repo
+#      (si no, el volumen ../data falla con "is not shared from the host")
+#   4. docker compose -f deploy/docker-compose.yml up -d --build
+#   5. claude.ai -> Settings -> Connectors -> Add custom connector: https://nombre-raro.ngrok-free.app/mcp
 x-dcdb: &dcdb
   build: {context: .., dockerfile: deploy/Dockerfile}
   volumes: ["../data:/app/data"]

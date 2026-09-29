@@ -73,5 +73,9 @@ túnel, con la IP real en `X-Forwarded-For`, así que el rate limit por IP sigue
 tiene topes de transferencia y pedidos por mes (confirmar los vigentes). Alternativa gratis sin tope declarado:
 Tailscale Funnel (URL `*.ts.net`).
 
-**Estado (2026-09-29): el código y los archivos de despliegue están listos; falta el VPS y el dominio**, que
-dependen de tu cuenta. Mientras tanto se usa local (Claude Desktop / Claude Code por stdio).
+En Windows, la carpeta `data\` del repo tiene que estar en Docker Desktop → *Settings → Resources → File sharing*;
+si no, el volumen `../data` falla con `is not shared from the host`.
+
+**Estado (2026-09-29): publicado con esta variante** (Docker Desktop + ngrok, dominio en `deploy/.env`), probado
+con `initialize`, `tools/list` y `buscar` por la URL pública. El VPS (opción A) sigue disponible si se quiere que
+no dependa de la PC.
