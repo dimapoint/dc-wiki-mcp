@@ -64,13 +64,14 @@ Los archivos listos están en `deploy/`: `dcdb.service` (systemd), `Caddyfile` (
    salga un dump nuevo, `./actualizar.sh`.
 5. En claude.ai: *Settings → Connectors → Add custom connector* con `https://dc.tu-dominio.com/mcp`.
 
-### Variante: Docker Desktop en tu PC
+### Variante gratis: Docker Desktop en tu PC
 
-`deploy/docker-compose.yml` levanta el servidor, un refresco diario y un túnel de Cloudflare (`cloudflared`), así que
-no se abre ningún puerto del router. Requiere un dominio en Cloudflare (~US$ 10/año; el túnel es gratis) y que la PC
-y Docker Desktop estén prendidos: si se apaga, el conector deja de responder hasta que vuelva. Todos los pedidos
-llegan por el túnel, así que el rate limit por IP usa la IP real que Cloudflare pasa en `X-Forwarded-For`.
-Sin dominio propio, otra opción es Tailscale Funnel (URL `*.ts.net` gratis), sin cambios en el código.
+`deploy/docker-compose.yml` levanta el servidor, un refresco diario y un túnel de ngrok (plan gratis, con un dominio
+estático `*.ngrok-free.app`), así que no se abre ningún puerto del router ni se paga nada. La PC y Docker Desktop
+tienen que estar prendidos: si se apaga, el conector deja de responder hasta que vuelva. Los pedidos llegan por el
+túnel, con la IP real en `X-Forwarded-For`, así que el rate limit por IP sigue funcionando. El plan gratis de ngrok
+tiene topes de transferencia y pedidos por mes (confirmar los vigentes). Alternativa gratis sin tope declarado:
+Tailscale Funnel (URL `*.ts.net`).
 
 **Estado (2026-09-29): el código y los archivos de despliegue están listos; falta el VPS y el dominio**, que
 dependen de tu cuenta. Mientras tanto se usa local (Claude Desktop / Claude Code por stdio).

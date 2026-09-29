@@ -1,9 +1,9 @@
-# Docker Desktop en tu PC: servidor + refresco diario + túnel de Cloudflare (URL pública HTTPS sin abrir puertos).
-#   1. Cloudflare Zero Trust -> Networks -> Tunnels -> crear túnel, copiar el token; Public hostname:
-#      dc.tu-dominio.com -> http://dcdb:8000
-#   2. Crear deploy/.env con:  TUNNEL_TOKEN=...   y   DCDB_HOST=dc.tu-dominio.com
+# Docker Desktop en tu PC, gratis: servidor + refresco diario + túnel de ngrok (URL pública HTTPS sin abrir puertos).
+#   1. Cuenta gratis en ngrok.com: copiar el authtoken y reclamar el dominio estático gratis (Domains), algo como
+#      nombre-raro.ngrok-free.app
+#   2. Crear deploy/.env con:  NGROK_AUTHTOKEN=...   y   DCDB_HOST=nombre-raro.ngrok-free.app
 #   3. docker compose -f deploy/docker-compose.yml up -d --build
-#   4. claude.ai -> Settings -> Connectors -> Add custom connector: https://dc.tu-dominio.com/mcp
+#   4. claude.ai -> Settings -> Connectors -> Add custom connector: https://nombre-raro.ngrok-free.app/mcp
 x-dcdb: &dcdb
   build: {context: .., dockerfile: deploy/Dockerfile}
   volumes: ["../data:/app/data"]
@@ -14,12 +14,12 @@ services:
     <<: *dcdb
     environment:
       DCDB_ALLOWED_HOSTS: ${DCDB_HOST}
-      FORWARDED_ALLOW_IPS: "*"   # el puerto no se publica en el host: solo lo alcanza cloudflared
+      FORWARDED_ALLOW_IPS: "*"   # el puerto no se publica en el host: solo lo alcanza ngrok
   refresh:
     <<: *dcdb
     command: ["sh", "-c", "while true; do uv run --no-dev python -m dcdb.refresh || true; sleep 86400; done"]
   tunnel:
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run
-    environment: {TUNNEL_TOKEN: "${TUNNEL_TOKEN}"}
+    image: ngrok/ngrok:latest
+    command: http --url=${DCDB_HOST} dcdb:8000
+    environment: {NGROK_AUTHTOKEN: "${NGROK_AUTHTOKEN}"}
     restart: unless-stopped
